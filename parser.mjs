@@ -1,3 +1,5 @@
+const target = 16
+
 function handleChannels(parts) {
     const keyChannels = {
         '11': '1',
@@ -20,7 +22,6 @@ function handleChannels(parts) {
     const measure = parts[0].slice(0, 3)
 
     if (channel in keyChannels) {
-        const target = 16
         let notes = parts[1];
         notes = normalizeNotes(target, notes)
         return [measure, keyChannels[channel], notes]
@@ -34,7 +35,7 @@ function rotateMeasure(obj){
     for (let i = 1; i<=7; i++){
         //generate empty lanes
         if(obj[i] === undefined){
-            measure.push("_".repeat(16))
+            measure.push("_".repeat(target))
         } else {
             measure.push(obj[i])
         }

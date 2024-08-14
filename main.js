@@ -5,7 +5,7 @@ const filePath = process.argv[2]
 console.log(process.argv)
 
 async function main() {
-    const parser = await import('./parser.js')
+    const parser = await import('./parser.mjs')
 
     if (filePath != undefined) {
         console.log(filePath)
