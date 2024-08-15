@@ -1,5 +1,7 @@
 .env
-node_modules/
 *.bms
-charts-bms.json
 *.txt
+node_modules/
+charts-bms.json
+songs-bms.json
+combined-data.json
