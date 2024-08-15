@@ -49,15 +49,17 @@ module.exports = {
                     id: song.id,
                     artist: song.artist,
                     title: song.title,
+                    aiLevel: chart.data.aiLevel,
+                    subtitle: song.data.subtitle,
                     md5: chart.data.hashMD5,
-                    tableFolders: [chart.data.tableFolders],
+                    tableFolders: chart.data.tableFolders,
                     matchCount
                 });
             }
         });
 
         if (searchResults.length === 0) {
-            return ('No results found.')
+            return []
         }
 
         return searchResults
