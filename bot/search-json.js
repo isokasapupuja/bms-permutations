@@ -16,9 +16,9 @@ module.exports = {
     * @param {Array} artistKeywords keywords to match for "artist" field
     * @param {Array} titleKeywords keywords to match for "title" field
     * @param {Array} difficultyKeywords also keywords to match for "title" field since difficulty is included in the same field
-    * @returns an Array with artist, title, md5hash, tableFolders. Only returns files with highest keyword match count.
+    * @returns an object with "Results". Only returns files with highest keyword match count.
     */
-    searchCharts: async function (path, artistKeywords = [], titleKeywords = [], difficultyKeywords = []) {
+    searchCharts: async function (path, artistKeywords = [], titleKeywords = [], difficultyKeywords = [], tableFolder = '') {
         const bmsData = readJsonFile(path)
         let searchResults = [];
         let maxMatchCount = 0;
@@ -27,7 +27,8 @@ module.exports = {
             'Search query:',
             '\n  artist:',artistKeywords,
             '\n  title:',titleKeywords,
-            '\n  difficulty:',difficultyKeywords)
+            '\n  difficulty:',difficultyKeywords,
+            '\n  tableFolder:',tableFolder)
 
         bmsData.forEach(song => {
             const lowerCaseTitle = song.title.toLowerCase();
@@ -36,7 +37,13 @@ module.exports = {
             const titleMatch = titleKeywords.length > 0 ? titleKeywords.some(keyword => lowerCaseTitle.includes(keyword.toLowerCase())) : false;
             const artistMatch = artistKeywords.length > 0 ? artistKeywords.some(keyword => lowerCaseArtist.includes(keyword.toLowerCase())) : false;
             const difficultyMatch = difficultyKeywords.length > 0 ? difficultyKeywords.some(keyword => lowerCaseTitle.includes(keyword.toLowerCase())) : false;
-            const matchCount = titleMatch + artistMatch + difficultyMatch
+            const tableFolderMatch = 
+                tableFolder.length !== 0 && 
+                song.data.tableString !== null &&
+                song.data.tableString.includes(tableFolder)
+
+            const matchCount = titleMatch + artistMatch + difficultyMatch + tableFolderMatch
+
 
             if (matchCount > maxMatchCount) {
                 maxMatchCount = matchCount;
@@ -52,7 +59,7 @@ module.exports = {
                     aiLevel: chart.data.aiLevel,
                     subtitle: song.data.subtitle,
                     md5: chart.data.hashMD5,
-                    tableFolders: chart.data.tableFolders,
+                    tableString: song.data.tableString,
                     matchCount
                 });
             }

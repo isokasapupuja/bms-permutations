@@ -2,6 +2,8 @@ const { ActionRowBuilder, SlashCommandBuilder, StringSelectMenuBuilder, StringSe
 const { searchCharts } = require('../../search-json.js');
 const { getChart } = require('../../getChart.js');
 const { parseBMS, chartData } = require('../../chartParser.js')
+const aliases = require('../../aliases.js')
+
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -21,7 +23,18 @@ module.exports = {
             option
                 .setName('difficulty')
                 .setDescription('Difficulty name keywords')
-                .setRequired(false)),
+                .setRequired(false))
+        .addStringOption(option => 
+            option
+                .setName('table')
+                .setDescription('Table, short or long form are both ok, ex. "stella, insane2, insane1, ude, gachimijoy, ...etc"')
+                .setRequired(false))
+        .addStringOption(option => 
+            option
+                .setName('folder')
+                .setDescription('Difficulty folder, should usually be a number')
+                .setRequired(false))
+            ,
         //todo: option to search for a table&folder
 
     /**
@@ -32,9 +45,27 @@ module.exports = {
         const artist = [interaction.options.getString('artist')].filter(Boolean);
         const title = [interaction.options.getString('title')].filter(Boolean);
         const difficulty = [interaction.options.getString('difficulty')].filter(Boolean);
+        const table = interaction.options.getString('table');
+        const folder = interaction.options.getString('folder');
+        let tableFolder = false
+
+        if (table) {
+            console.log(table, aliases[table])
+            console.log(table in aliases, Object.values(aliases).includes(table))
+            if (table in aliases || Object.values(aliases).includes(table)) {
+                const resolvedTable = aliases[table] || table
+                tableFolder = `${resolvedTable}${folder !== null ? folder : ''}`
+                console.log(tableFolder)
+            } else {
+                return interaction.reply({
+                    content: `not a valid table`,
+                    ephemeral: true
+                })
+            }
+        }
 
         //handle no options
-        if (artist.length === 0 && title.length === 0 && difficulty.length === 0){
+        if (artist.length === 0 && title.length === 0 && difficulty.length === 0 && !tableFolder){
             return interaction.reply({
                 content: 'Please provide atleast one option keyword',
                 ephemeral: true
@@ -42,7 +73,7 @@ module.exports = {
         }
 
         try {
-            const results = await searchCharts(process.env.bmsDataJsonPath, artist, title, difficulty)
+            const results = await searchCharts(process.env.bmsDataJsonPath, artist, title, difficulty, tableFolder)
 
             let currentPage = 1
             const optionsPerPage = 25;
@@ -57,12 +88,7 @@ module.exports = {
                         pageResults.map((chart) =>
                             new StringSelectMenuOptionBuilder()
                                 .setLabel(`${chart.artist} - ${chart.title} ${chart.subtitle !== null ? chart.subtitle : ''}`)
-                                .setDescription(
-                                    chart.tableFolders.map(folder => 
-                                        `${folder.table}${folder.level}`).join(", ") || 
-                                        `${chart.aiLevel !== null ? 'AI '+chart.aiLevel : ''}` ||
-                                        'File not in tables'
-                                )
+                                .setDescription(`${chart.tableString !== null ? chart.tableString : chart.aiLevel !== null ? 'AI'+chart.aiLevel : 'Unknown difficulty'}`)
                                 .setValue(chart.md5)
                         )
                     )
