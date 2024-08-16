@@ -2,6 +2,8 @@
 *.bms
 *.txt
 node_modules/
+old/
+bms/
 charts-bms.json
 songs-bms.json
 combined-data.json
