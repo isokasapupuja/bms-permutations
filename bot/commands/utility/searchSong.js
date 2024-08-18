@@ -35,7 +35,6 @@ module.exports = {
                 .setDescription('Difficulty folder, should usually be a number')
                 .setRequired(false))
             ,
-        //todo: option to search for a table&folder
 
     /**
      * @param {Object} param0
@@ -143,12 +142,10 @@ module.exports = {
                 interaction.reply({ content: `Selected chart: ${chartmd5}`, ephemeral: true }
                 )
                 try {
-                    const decodedData = await getChart(chartmd5)
-
-                    const parsed = parseBMS(decodedData)
-                    // const chart = chartData(parsed)
-                    console.log(parsed.header)
-
+                    const decodedData = await getChart(chartmd5)                    
+                    const parsed = parseBMS(decodedData).notes
+                    const chart = chartData(parsed)
+                    //todo: send chart data to permutator/calc
                 } catch (error) {
                     console.error('Error fetching chart data, ', error)
                 }

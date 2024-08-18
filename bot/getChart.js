@@ -4,6 +4,9 @@ const axios = require('axios')
 module.exports = {
     getChart: async function (md5) {
         try {
+            if (md5 === ''){
+                throw new Error('failed to getChart md5 was an empty string')
+            }
             const filePath = `./bms/${md5}`
 
             if (!fs.existsSync(filePath)) {

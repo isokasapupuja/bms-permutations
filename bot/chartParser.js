@@ -1,5 +1,3 @@
-const target = 16
-
 function handleChannels(parts) {
     const keyChannels = {
         '11': '1',
@@ -23,46 +21,15 @@ function handleChannels(parts) {
 
     if (channel in keyChannels) {
         let notes = parts[1];
-        notes = normalizeNotes(target, notes)
         return [measure, keyChannels[channel], notes]
     } else if (channel in specialChannels) {
-        return [measure, specialChannels[channel], parts[1]]
-    }
-}
-
-function rotateMeasure(obj) {
-    const measure = []
-    for (let i = 1; i <= 7; i++) {
-        //generate empty lanes
-        if (obj[i] === undefined) {
-            measure.push("_".repeat(target))
-        } else {
-            measure.push(obj[i])
+        let bpm = parts[1]
+        if (specialChannels[channel] === 'BPMx'){
+            bpm = Number(bpm)
         }
+        return [measure, specialChannels[channel], bpm]
     }
-    let rotated = []
-    for (let i = 0; i < measure[0].length; i++) {
-        let row = ''
-        measure.forEach((s) =>
-            row += s[i]
-        )
-        rotated.push(row)
-    }
-    return rotated
 }
-
-function normalizeNotes(target, notes) {
-    while (notes.length / 2 < target) {
-        notes = notes.match(/.{2}/g).reduce((a, c) => a + c + '00', '')
-    }
-    while (notes.length / 2 > target) {
-        notes = notes.match(/.{4}/g).reduce((a, c) => a + (c === '0000' ? '00' : '11'), '');
-    }
-    notes = notes.match(/.{2}/g).reduce((a, c) => a + (c === '00' ? '_' : '1'), '');
-    return notes
-}
-
-
 
 module.exports = {
     parseBMS: function (fileContent) {
@@ -91,22 +58,60 @@ module.exports = {
 
                     parsedData.notes[measure][channel] = data
 
-
                 } else {
                     const parts = line.split(' ')
                     parsedData.header[parts[0]] = parts[1]
                 }
             }
         });
-        // console.log(parsedData.notes)
         return parsedData
     },
-    
-    chartData: function (parsedData) {
-        const chart = {}
-        for (const measure in parsedData.notes) {
-            chart[measure] = rotateMeasure(parsedData.notes[measure])
+
+    chartData : function(data) {
+        const measureStampData = {}
+        for (const [m, lanes] of Object.entries(data)){
+            Object.keys(lanes).forEach((lane) => {
+                // TODO: deal with bpm changes
+                if (typeof lanes[lane] === 'number'){
+                    let t = Number(m).toFixed(4)
+                    if (!measureStampData[t]) {
+                        measureStampData[t] = []
+                    }
+                    measureStampData[t].push(`BPMx:${lanes[lane]}`)
+                } else {
+                    // m = integer measure
+                    // lane = the key/type
+                    // lanes[lane] the objects in the lane
+
+                    // objects are grouped into array
+                    const laneObjects = lanes[lane].match((/.{2}/g))
+                    // check into how many parts a measure is divided into
+                    const signature = laneObjects.length
+                    laneObjects.forEach((noteObject, index) => {
+                        if (noteObject !== '00') {
+                            let t = (Number(m) + (1 * index / signature)).toFixed(4)
+
+                            if (!measureStampData[t]) {
+                                measureStampData[t] = [];
+                            }
+
+                            if (!lane.startsWith('BPM')){
+                            measureStampData[t].push(lane)
+                            } else {
+                                let bpm = parseInt(`0x${noteObject}`,16)
+                                measureStampData[t].push(`${lane}:${bpm}`)
+                            }
+                        }
+                    })
+                }
+            })
         }
-        return chart
+
+        //sort the measures
+        const sortedChartData = Object.entries(measureStampData)
+            .sort(([a], [b]) => a - b)
+            .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {})
+
+        return sortedChartData
     }
 }
