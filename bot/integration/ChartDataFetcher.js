@@ -210,8 +210,8 @@ async function initMultiPromise(updateAt, intervalMs) {
  */
 async function initDefault() {
     const updateAt = {
-        hour: 20,
-        minute: 55,
+        hour: 1,
+        minute: 35,
         second: 0,
         millisecond: 0,
     }
