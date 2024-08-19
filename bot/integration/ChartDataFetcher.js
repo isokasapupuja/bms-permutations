@@ -17,6 +17,13 @@ axiosRetry(axios, {
     },
 })
 
+let LAST_CHANGE = -1
+/**
+ * @returns {Date | number} Last instant when a file was updated, or `-1` if never.
+ */
+function lastChange() {
+    return LAST_CHANGE
+}
 const INTERVALS = []
 const DAY_IN_MS = 86_400_000
 const LEEWAY_MS = 60_000
@@ -35,7 +42,9 @@ function clearAllIntervals() {
     console.info('Intervals cleared')
 }
 
-function nextTargetInstant({ hour, minute, second, millisecond }) {
+function nextTargetInstant({ hour = 0, minute = 0, second = 0, millisecond = 0 }) {
+    console.debug(`h: ${hour}, m: ${minute}, s: ${second}, ms: ${millisecond}`)
+
     const now = new Date()
     const targetDate = new Date(
         Date.UTC(
@@ -66,6 +75,7 @@ function nextTargetInstant({ hour, minute, second, millisecond }) {
  * @throws {RangeError} If `initialFetchDateTime` is in the past.
  * @throws {TypeError} If `intervalSeconds` is not a positive number.
  * @throws {TypeError} If `url` is not a string.
+ * @throws {TypeError} If `callback` is not a function
  *
  * @example
  * initInterval({
@@ -79,43 +89,36 @@ function nextTargetInstant({ hour, minute, second, millisecond }) {
  * })
  */
 function initInterval({ alsoFetchImmediately, initialFetchDateTime, intervalMs, url, callback }) {
-    // url = 'https://httpstat.us/503'
-    _assertParameters(initialFetchDateTime, intervalMs, url);
+    _assertParameters(initialFetchDateTime, intervalMs, url, callback);
 
-    let queryResolved = false
-    return new Promise((resolve, reject) => {
-        const waitTime = initialFetchDateTime - Date.now()
-        console.info(`Sending initial request ${waitTime} ms from now (${new Date(initialFetchDateTime)}) to ${url}`)
-        if (alsoFetchImmediately) {
-            console.info("Also fetching immediately...");
-            _makeQuery()
-        }
+    const waitTime = initialFetchDateTime - Date.now()
+    console.info(`Sending initial request ${waitTime} ms from now (${new Date(initialFetchDateTime)}) to ${url} with interval ${intervalMs}`)
+    if (alsoFetchImmediately) {
+        console.info("Also fetching immediately...");
+        _makeQuery()
+    }
 
-        setTimeout(() => {
-            const intervalId = setInterval(() => _makeQuery(), intervalMs)
-            INTERVALS.push(intervalId)
-        }, waitTime)
+    setTimeout(() => {
+        _makeQuery() // initial query after the wait
+        const intervalId = setInterval(() => _makeQuery(), intervalMs)
+        INTERVALS.push(intervalId)
+    }, waitTime)
 
-        async function _makeQuery() {
-            console.info(`Making GET request to ${url}`)
-            callback(await axios.get(url)
-                .then((response) => {
-                    if (!queryResolved) {
-                        queryResolved = true;
-                        resolve(response)
-                    }
-                    console.info(`Got response from ${url} with status ${response.status}`)
-                    return response.data
-                })
-                .catch((err) => {
-                    if (err.response.status !== 200) {
-                        throw new Error(`API call to ${url} failed with status code: ${err.response.status} after ${MAX_RETRIES} retry attempts`);
-                    }
-                }));
-        }
-    })
+    async function _makeQuery() {
+        console.info(`Making GET request to ${url}`)
+        callback(await axios.get(url)
+            .then((response) => {
+                console.info(`Got response from ${url} with status ${response.status}`)
+                return response.data
+            })
+            .catch((err) => {
+                if (err.response.status !== 200) {
+                    throw new Error(`API call to ${url} failed with status code: ${err.response.status} after ${MAX_RETRIES} retry attempts`);
+                }
+            }));
+    }
 
-    function _assertParameters(initialFetchDateTime, intervalSeconds, url) {
+    function _assertParameters(initialFetchDateTime, intervalSeconds, url, callback) {
         if (!(initialFetchDateTime instanceof Date) || isNaN(initialFetchDateTime)) {
             throw new TypeError(`initialFetchDateTime must be a valid Date object, ${initialFetchDateTime}`);
         }
@@ -128,64 +131,50 @@ function initInterval({ alsoFetchImmediately, initialFetchDateTime, intervalMs, 
         if (typeof url !== 'string') {
             throw new TypeError(`url must be a string, ${url}`);
         }
+        if (typeof callback !== 'function') {
+            throw new TypeError(`callback must be a function, ${callback}`)
+        }
     }
 }
 
 function init(fileName, updateAt, intervalMs) {
-    const _callback = (data) => {
-        console.info(`Got data with length: ${data?.length}`)
-        try {
-            data = JSON.stringify(data, null, 2)
-        } catch (err) {
-            console.warn("Problem with converting data to json string")
-            throw err
-        }
-
-        const filePath = path.join(FILE_BASE, fileName)
-        console.info(`Writing file to ${filePath}`)
-        fs.writeFile(filePath, data, (err) => {
-            if (err) {
-                console.error('Error writing to file:', err)
-            } else {
-                console.log('File written successfully!')
+    let _callback;
+    const promise = new Promise((resolve, reject) => {
+        _callback = (data) => {
+            console.info(`Got data with length: ${data?.length}`)
+            try {
+                data = JSON.stringify(data, null, 2)
+            } catch (err) {
+                console.warn("Problem with converting data to json string")
+                reject(new Error(err))
             }
-        })
-    }
+
+            const filePath = path.join(FILE_BASE, fileName)
+            console.info(`Writing file to ${filePath}`)
+            fs.writeFile(filePath, data, (err) => {
+                if (err) {
+                    console.error('Error writing to file:', err)
+                    reject(err)
+                } else {
+                    console.log('File written successfully!')
+                    LAST_CHANGE = new Date()
+                    resolve(data)
+                }
+            })
+        }
+    })
 
     const nextInstant = nextTargetInstant(updateAt)
     const nextInstantIsNotClose = (nextInstant - Date.now()) >= LEEWAY_MS
-    return initInterval({
+    initInterval({
         alsoFetchImmediately: nextInstantIsNotClose,
         initialFetchDateTime: nextInstant,
         intervalMs: intervalMs,
         url: path.join(URL_BASE, fileName),
         callback: _callback
     })
-}
 
-/**
- * Inits with one day interval at 01:35:00:0000 UTC
- */
-async function initDefault() {
-    const updateAt = {
-        hour: 1,
-        minute: 35,
-        second: 0,
-        millisecond: 0,
-    }
-
-    return initMultiPromise(updateAt, DAY_IN_MS)
-}
-
-function initCustom({ hour, minute, second, millisecond, intervalMs }) {
-    const updateAt = {
-        hour: hour,
-        minute: minute,
-        second: second,
-        millisecond: millisecond,
-    }
-
-    return initMultiPromise(updateAt, intervalMs)
+    return promise
 }
 
 async function initMultiPromise(updateAt, intervalMs) {
@@ -204,4 +193,70 @@ async function initMultiPromise(updateAt, intervalMs) {
         });
 }
 
-module.exports = { initDefault, initCustom, clearAllIntervals }
+/**
+ * Inits with one day interval at `01:35:00:0000 UTC`
+ * 
+ * @returns {Promise<[]>} Two part promise
+ * 
+ * @example
+ * initDefault()
+    .then((response) => {
+        console.log(response[0].length, response[1].length)
+        console.log("EPIC")
+    })
+    .catch((err) => {
+        console.warn("Initialization was unsuccessful", err)
+    })
+ */
+async function initDefault() {
+    const updateAt = {
+        hour: 20,
+        minute: 55,
+        second: 0,
+        millisecond: 0,
+    }
+
+    return initMultiPromise(updateAt, 30_000)
+}
+
+/**
+ * Works like {@link initDefault} but you get to define your own start time and interval.
+ * Undefined parameters will default to zero, except intervalMs, which is mandatory.
+ * 
+ * @param {Object} options
+ * @param {number} [options.hour]  
+ * @param {number} [options.minute]  
+ * @param {number} [options.second]  
+ * @param {number} [options.millisecond]  
+ * @param {number} options.intervalMs  
+ * 
+ * @returns {Promise<[*,*]>} Two part promise
+ * 
+ * @throws {Argu}
+ * 
+ * @example
+ * initCustom({hour: 12, minute: 34, second: 56, intervalMs: 60_000})
+    .then((response) => {
+        console.log(response[0].length, response[1].length)
+        console.log("EPIC")
+    })
+    .catch((err) => {
+        console.warn("Initialization was unsuccessful", err)
+    })
+ */
+function initCustom({ hour = 0, minute = 0, second = 0, millisecond = 0, intervalMs }) {
+    if (!intervalMs || typeof intervalMs !== 'number' || intervalMs <= 0) {
+        throw new TypeError(`Interval must be defined, ${intervalMs}`)
+    }
+
+    const updateAt = {
+        hour: hour,
+        minute: minute,
+        second: second,
+        millisecond: millisecond,
+    }
+
+    return initMultiPromise(updateAt, intervalMs)
+}
+
+module.exports = { initDefault, initCustom, clearAllIntervals, lastChange }
