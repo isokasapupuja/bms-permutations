@@ -1,8 +1,11 @@
+require('dotenv').config()
 const { ActionRowBuilder, SlashCommandBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ComponentType, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { searchCharts } = require('../../search-json.js');
 const { getChart } = require('../../getChart.js');
 const { parseBMS, chartData } = require('../../chartParser.js')
 const aliases = require('../../aliases.js')
+const combinedJSONDataPath = `${process.env.FILE_BASE_PATH}${process.env.FILE_NAME_COMBINED}`
+const viewer = process.env.CHART_VIEWER_URL
 
 
 module.exports = {
@@ -72,14 +75,15 @@ module.exports = {
         }
 
         try {
-            const results = await searchCharts(process.env.bmsDataJsonPath, artist, title, difficulty, tableFolder)
+            const results = await searchCharts(combinedJSONDataPath, artist, title, difficulty, tableFolder)
 
             let currentPage = 1
             const optionsPerPage = 25;
             const totalPages = Math.ceil(results.length / optionsPerPage);
+            let pageResults = []
 
             const selectMenu = (page) => {
-                const pageResults = results.slice((page - 1) * optionsPerPage, page * optionsPerPage)
+                pageResults = results.slice((page - 1) * optionsPerPage, page * optionsPerPage)
                 return new StringSelectMenuBuilder()
                     .setCustomId(`chart-select-${interaction.id}-${page}`)
                     .setPlaceholder('Choose a chart')
@@ -139,7 +143,15 @@ module.exports = {
 
             selectMenuCollector.on('collect', async (interaction) => {
                 const chartmd5 = interaction.values[0];
-                interaction.reply({ content: `Selected chart: ${chartmd5}`, ephemeral: true }
+                const chart = pageResults.find(item => item.md5 === chartmd5)
+                interaction.reply({ 
+                    content: 
+                    `${chart.title}  ${
+                        chart.tableString !== null ? chart.tableString : 
+                        chart.aiLevel !== null ? 'AI'+chart.aiLevel : 
+                        ''
+                    }\n${chart.artist}\n${viewer}${chartmd5}`, 
+                    ephemeral: true }
                 )
                 try {
                     const decodedData = await getChart(chartmd5)                    

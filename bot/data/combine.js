@@ -1,18 +1,31 @@
+require('dotenv').config();
 const fs = require('fs');
+const FILE_BASE = process.env.FILE_BASE_PATH
+const CHARTS_JSON = process.env.FILE_NAME_CHARTS
+const SONGS_JSON = process.env.FILE_NAME_SONGS
+const combinedJSON = process.env.FILE_NAME_COMBINED
 
-// Read the JSON files
-const songsData = JSON.parse(fs.readFileSync('songs-bms.json', 'utf8'));
-const chartsData = JSON.parse(fs.readFileSync('charts-bms.json', 'utf8'));
+function combineJson() {
+    const songsData = JSON.parse(fs.readFileSync(`${FILE_BASE}${SONGS_JSON}`, 'utf8'));
+    const chartsData = JSON.parse(fs.readFileSync(`${FILE_BASE}${CHARTS_JSON}`, 'utf8'));
+    const songsMap = new Map();
+    try {
+        if (songsData && chartsData){
 
-// Create a Map to store songs by ID
-const songsMap = new Map();
-songsData.forEach(song => songsMap.set(song.id, song));
+            songsData.forEach(song => songsMap.set(song.id, song));
 
-// Combine songs and charts using the Map
-const combinedData = chartsData.map(chart => ({
-  ...songsMap.get(chart.songID),
-  charts: [chart],
-}));
+            const combinedData = chartsData.map(chart => ({
+                ...songsMap.get(chart.songID),
+                charts: [chart],
+            }));
 
-// Write the combined data to a new JSON file
-fs.writeFileSync('combined-data.json', JSON.stringify(combinedData, null, 2));
+            fs.writeFileSync(`${FILE_BASE}${combinedJSON}`, JSON.stringify(combinedData, null, 2));
+
+        console.log(`Created ${FILE_BASE}${combinedJSON}`)
+        }
+    } catch (error) {
+        console.log(error)
+    }
+}
+
+module.exports = { combineJson }

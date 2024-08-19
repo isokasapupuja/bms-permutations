@@ -1,11 +1,26 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { Client, Events, GatewayIntentBits, Collection } = require('discord.js');
-const internal = require('node:stream');
 require('dotenv').config()
+const { initDefault } = require('./integration/ChartDataFetcher.js')
+const { combineJson } = require('./data/combine.js')
+const { deployCommands } = require('./deploy-commands.js')
 
 const config = process.env
 const prefix = config.PREFIX
+const token = config.TOKEN
+
+// Commented out while testing
+initDefault()
+    .then((response) => {
+        console.log(response[0].length, response[1].length)
+        console.log("EPIC")
+        combineJson()
+        deployCommands()
+    })
+    .catch((err) => {
+        console.warn("Initialization was unsuccessful", err)
+    })
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] })
 
@@ -32,7 +47,7 @@ client.once(Events.ClientReady, readyClient => {
     console.log(`${readyClient.user.tag} is online.`);
 });
 
-client.login(config.TOKEN);
+client.login(token);
 
 client.on(Events.InteractionCreate, async interaction => {
 	if (!interaction.isChatInputCommand()) return;

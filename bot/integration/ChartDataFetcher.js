@@ -216,7 +216,7 @@ async function initDefault() {
         millisecond: 0,
     }
 
-    return initMultiPromise(updateAt, 30_000)
+    return initMultiPromise(updateAt, DAY_IN_MS)
 }
 
 /**
