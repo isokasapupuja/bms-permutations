@@ -1,14 +1,23 @@
 const fs = require('fs')
 
+let cachedData = null
+let lastModified = null
+
 function readJsonFile(filePath) {
-    try {
-        const data = fs.readFileSync(filePath, 'utf8');
-        return JSON.parse(data);
-    } catch (err) {
-        console.error('Error reading JSON file:', err);
-        return
-        [];
+
+    const stats = fs.statSync(filePath)
+    
+    if (!cachedData || !lastModified || !lastModified < stats.mtime){
+        try {
+            const data = fs.readFile(filePath, 'utf8')
+            cachedData = JSON.parse(data)
+            lastModified =  stats.mtime
+        } catch (err) {
+            console.error('Error reading JSON file:', err)
+            return []
+        }
     }
+    return cachedData
 }
 
 module.exports = {
@@ -19,7 +28,7 @@ module.exports = {
     * @returns an object with "Results". Only returns files with highest keyword match count.
     */
     searchCharts: async function (path, artistKeywords = [], titleKeywords = [], difficultyKeywords = [], tableFolder = '') {
-        const bmsData = readJsonFile(path)
+        const bmsData = await readJsonFile(path)
         let searchResults = [];
         let maxMatchCount = 0;
 
